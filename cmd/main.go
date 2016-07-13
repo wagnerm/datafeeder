@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"github.com/bndr/gojenkins"
 	"github.com/wagnerm/datafeeder"
-	//"log"
+	elastic "gopkg.in/olivere/elastic.v3"
 )
 
 var (
@@ -12,8 +12,18 @@ var (
 )
 
 func main() {
+
 	// create jenkins
 	jenkins, err := gojenkins.CreateJenkins("http://localhost:8080/").Init()
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	client, err := elastic.NewClient(elastic.SetSniff(false), elastic.SetURL("http://127.0.0.1:9200"))
+	if err != nil {
+		fmt.Println(err)
+	}
+	err = datafeeder.CreateShipperIndex(client, "jenkinslogs")
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -26,45 +36,16 @@ func main() {
 
 	// Find recent builds for jobs
 	for _, j := range alljobs {
+		jobBuilds := make([]*gojenkins.Build, 0)
 		if enabled, _ := j.IsEnabled(); enabled == true {
-			jobBuilds, err := collateBuilds(j)
+			jobBuilds, err = datafeeder.CollateBuilds(j, timeframe)
 			if err != nil {
 				fmt.Println(err)
 			}
-			fmt.Println(len(jobBuilds), jobBuilds)
-			//jobBuilds = datafeeder.IsWithinTimeframe(jobBuilds, timeframe)
-			//fmt.Println(len(jobBuilds), jobBuilds)
-			/*
-			builds := j.GetDetails().Builds
-			for _, b := range builds {
-
-        build, err := j.GetBuild(b.Number)
-        if err != nil {
-          fmt.Println(err)
-        }
-        if build == nil {
-          log.Println("No build found", b.Number)
-        }
-				log.Println("Looking at build", b.Number)
-				datafeeder.IsWithinTimeframe(build, timeframe)
-
-			}*/
+		}
+		fmt.Println(len(jobBuilds), jobBuilds)
+		for _, build := range jobBuilds {
+			err = datafeeder.ShipElasticsearch(client, build, "jenkinslogs", "jenkinslogs")
 		}
 	}
-}
-
-func collateBuilds(j *gojenkins.Job) ([]*gojenkins.Build, error) {
-	builds := j.GetDetails().Builds
-	//jobBuilds := make([]*gojenkins.Build, len(builds))
-	var jobBuilds []*gojenkins.Build
-	for _, b := range builds {
-			build, err := j.GetBuild(b.Number)
-			if err != nil {
-				return nil, err
-			}
-			if datafeeder.IsWithinTimeframe(build, timeframe) {
-				jobBuilds = append(jobBuilds, build)
-			}
-	}
-	return jobBuilds, nil
 }
