@@ -6,11 +6,20 @@ import (
 	"github.com/wagnerm/datafeeder"
 	elastic "gopkg.in/olivere/elastic.v3"
 	"strconv"
-	//"encoding/json"
 )
 
 var (
-	timeframe int = 3600
+	index                  = "jenkinslogs"
+	timeframe              = 3600
+	jenkinsDocumentMapping = `{
+    	"mappings":{
+        	"%s":{
+        			"properties":{
+          				"timestamp": {"type": "date"}
+        			}
+      		}
+    	}
+		}`
 )
 
 func main() {
@@ -25,7 +34,7 @@ func main() {
 	if err != nil {
 		fmt.Println(err)
 	}
-	err = datafeeder.CreateElasticsearchIndex(client, "jenkinslogs")
+	err = datafeeder.CreateElasticsearchIndex(client, index, fmt.Sprint(jenkinsDocumentMapping, index))
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -47,7 +56,7 @@ func main() {
 		}
 		fmt.Println(len(jobBuilds), jobBuilds)
 		for _, build := range jobBuilds {
-			d := datafeeder.Document{Client: client, JsonBody: build.Info(), Index: "jenkinslogs", RecordType: "jenkinslogs", Timestamp: datafeeder.GenUTCTimestampTag(build.Info().Timestamp), Id: strconv.FormatInt(build.Info().Number, 10), Refresh: false}
+			d := datafeeder.Document{Client: client, JsonBody: build.Info(), Index: index, RecordType: index, Timestamp: datafeeder.GenUTCTimestampTag(build.Info().Timestamp), Id: strconv.FormatInt(build.Info().Number, 10), Refresh: false}
 			err = d.IndexDocument()
 			if err != nil {
 				fmt.Println(err)
