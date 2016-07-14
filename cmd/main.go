@@ -5,6 +5,8 @@ import (
 	"github.com/bndr/gojenkins"
 	"github.com/wagnerm/datafeeder"
 	elastic "gopkg.in/olivere/elastic.v3"
+	"strconv"
+	//"encoding/json"
 )
 
 var (
@@ -23,7 +25,7 @@ func main() {
 	if err != nil {
 		fmt.Println(err)
 	}
-	err = datafeeder.CreateShipperIndex(client, "jenkinslogs")
+	err = datafeeder.CreateElasticsearchIndex(client, "jenkinslogs")
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -45,7 +47,11 @@ func main() {
 		}
 		fmt.Println(len(jobBuilds), jobBuilds)
 		for _, build := range jobBuilds {
-			err = datafeeder.ShipElasticsearch(client, build, "jenkinslogs", "jenkinslogs")
+			d := datafeeder.Document{Client: client, JsonBody: build.Info(), Index: "jenkinslogs", RecordType: "jenkinslogs", Timestamp: datafeeder.GenUTCTimestampTag(build.Info().Timestamp), Id: strconv.FormatInt(build.Info().Number, 10), Refresh: false}
+			err = d.IndexDocument()
+			if err != nil {
+				fmt.Println(err)
+			}
 		}
 	}
 }
